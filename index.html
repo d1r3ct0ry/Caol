@@ -142,6 +142,33 @@
             transition: all 0.3s ease;
         }
         .retry-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3); }
+        
+        /* Novos estilos para a página de favoritos */
+        .favorites-container {
+            width: 100%;
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+        .favorite-item {
+            margin-bottom: 20px;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        .remove-fav-btn {
+            width: auto;
+            padding: 10px 20px;
+            border-radius: 25px;
+            margin: 10px auto;
+            font-size: 14px;
+        }
+        .empty-favorites {
+            text-align: center;
+            color: #6c757d;
+            padding: 40px 20px;
+        }
         @media (max-width: 480px) {
             body { padding: 10px; }
             .container { border-radius: 16px; }
@@ -203,9 +230,9 @@
                 this.currentCat = null;
                 this.activeTab = 'voting';
 
-                // ✅ Carrega favoritos do localStorage
-                this.favorites = new Set(JSON.parse(localStorage.getItem('favorites')) || []);
-
+                // ✅ Agora armazenamos objetos completos de gatos favoritos
+                this.favorites = JSON.parse(localStorage.getItem('favorites')) || [];
+                
                 this.cache = new Map();
                 this.headers = {
                     "Content-Type": "application/json",
@@ -324,8 +351,18 @@
 
             favorite() {
                 if (!this.currentCat) return;
-                this.favorites.add(this.currentCat.id);
-                localStorage.setItem('favorites', JSON.stringify([...this.favorites]));
+                
+                // Verifica se já é favorito
+                const isAlreadyFavorite = this.favorites.some(fav => fav.id === this.currentCat.id);
+                
+                if (isAlreadyFavorite) {
+                    this.showNotification('❤️ Este gatinho já está nos favoritos!');
+                    return;
+                }
+                
+                // Adiciona o gato completo aos favoritos
+                this.favorites.push(this.currentCat);
+                localStorage.setItem('favorites', JSON.stringify(this.favorites));
                 this.showNotification('❤️ Adicionado aos favoritos!');
             }
 
@@ -341,7 +378,17 @@
                     }
 
                     const content = document.getElementById('content');
-                    content.innerHTML = breeds.map(b => `<p>${b.name}</p>`).join('');
+                    content.innerHTML = `
+                        <div style="width: 100%; max-height: 400px; overflow-y: auto;">
+                            <h2 style="margin-bottom: 20px; text-align: center;">Raças de Gatos</h2>
+                            ${breeds.map(breed => `
+                                <div style="padding: 10px; border-bottom: 1px solid #e9ecef;">
+                                    <strong>${breed.name}</strong>
+                                    <p style="margin: 5px 0; font-size: 14px; color: #6c757d;">${breed.description || 'Sem descrição disponível'}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
 
                 } catch (error) {
                     console.error(error);
@@ -351,31 +398,47 @@
 
             loadFavorites() {
                 const content = document.getElementById('content');
-                if (this.favorites.size === 0) {
-                    content.innerHTML = `<p style="text-align:center; margin-top: 40px; color:#6c757d;">Nenhum favorito ainda!</p>`;
+                
+                if (this.favorites.length === 0) {
+                    content.innerHTML = `
+                        <div class="empty-favorites">
+                            <i class="fa-solid fa-heart" style="font-size: 3rem; color: #ff6b6b; margin-bottom: 15px;"></i>
+                            <p>Nenhum gatinho favorito ainda!</p>
+                            <p style="font-size: 14px; margin-top: 10px;">Vá para a aba "Votar" e clique no ❤️ para adicionar favoritos</p>
+                        </div>
+                    `;
                     return;
                 }
 
-                const favArray = [...this.favorites];
-                content.innerHTML = favArray.map(id => `
-                    <div class="cat-card" style="margin-bottom: 20px;">
-                        <div class="cat-image-container">
-                            <img src="https://cdn2.thecatapi.com/images/${id}.jpg" alt="Gatinho favorito" class="cat-image">
-                        </div>
-                        <div class="action-buttons">
-                            <button class="action-btn favorite-btn" onclick="app.removeFavorite('${id}')">
-                                <i class="fa-solid fa-heart-crack"></i> Remover
-                            </button>
-                        </div>
+                content.innerHTML = `
+                    <div class="favorites-container">
+                        <h2 style="margin-bottom: 20px; text-align: center;">Meus Gatinhos Favoritos</h2>
+                        ${this.favorites.map(cat => {
+                            const breedName = (cat.breeds && cat.breeds.length > 0) ? cat.breeds[0].name : 'Gatinho Fofo';
+                            return `
+                                <div class="favorite-item">
+                                    <div class="cat-card">
+                                        <h3 class="breed-name">${breedName}</h3>
+                                        <div class="cat-image-container">
+                                            <img src="${cat.url}" alt="${breedName}" class="cat-image">
+                                        </div>
+                                        <button class="action-btn favorite-btn remove-fav-btn" onclick="app.removeFavorite('${cat.id}')">
+                                            <i class="fa-solid fa-heart-crack"></i> Remover dos Favoritos
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
                     </div>
-                `).join('');
+                `;
             }
 
-            removeFavorite(id) {
-                this.favorites.delete(id);
-                localStorage.setItem('favorites', JSON.stringify([...this.favorites]));
+            removeFavorite(catId) {
+                // Filtra o array removendo o gato com o ID especificado
+                this.favorites = this.favorites.filter(cat => cat.id !== catId);
+                localStorage.setItem('favorites', JSON.stringify(this.favorites));
                 this.showNotification('💔 Removido dos favoritos');
-                this.loadFavorites();
+                this.loadFavorites(); // Recarrega a lista
             }
 
             showLoading(text = 'Carregando...') {
