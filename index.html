@@ -203,7 +203,7 @@
                 this.currentCat = null;
                 this.activeTab = 'voting';
 
-                // ✅ Carrega favoritos do localStorage como objetos
+                // ✅ Carrega favoritos do localStorage
                 this.favorites = new Set(JSON.parse(localStorage.getItem('favorites')) || []);
 
                 this.cache = new Map();
@@ -324,15 +324,90 @@
 
             favorite() {
                 if (!this.currentCat) return;
+                this.favorites.add(this.currentCat.id);
+                localStorage.setItem('favorites', JSON.stringify([...this.favorites]));
+                this.showNotification('❤️ Adicionado aos favoritos!');
+            }
 
-                const catData = {
-                    id: this.currentCat.id,
-                    url: this.currentCat.url,
-                    name: (this.currentCat.breeds && this.currentCat.breeds.length > 0) ? this.currentCat.breeds[0].name : 'Vota no Gator'
-                };
+            async loadBreeds() {
+                try {
+                    this.showLoading('Carregando raças...');
+                    let breeds = this.cache.get('breeds');
+                    if (!breeds) {
+                        const response = await fetch(`${this.BASE_URL}/breeds`, { headers: this.headers });
+                        if (!response.ok) throw new Error('Erro ao carregar raças');
+                        breeds = await response.json();
+                        this.cache.set('breeds', breeds);
+                    }
+
+                    const content = document.getElementById('content');
+                    content.innerHTML = breeds.map(b => `<p>${b.name}</p>`).join('');
+
+                } catch (error) {
+                    console.error(error);
+                    this.showError('Erro ao carregar raças');
+                }
+            }
+
+            loadFavorites() {
+                const content = document.getElementById('content');
+                if (this.favorites.size === 0) {
+                    content.innerHTML = `<p style="text-align:center; margin-top: 40px; color:#6c757d;">Nenhum favorito ainda!</p>`;
+                    return;
+                }
 
                 const favArray = [...this.favorites];
-                if (!favArray.find(c => c.id === catData.id)) {
-                    favArray.push(catData);
-                    this.favorites = new Set(favArray);
-                    localStorage
+                content.innerHTML = favArray.map(id => `
+                    <div class="cat-card" style="margin-bottom: 20px;">
+                        <div class="cat-image-container">
+                            <img src="https://cdn2.thecatapi.com/images/${id}.jpg" alt="Gatinho favorito" class="cat-image">
+                        </div>
+                        <div class="action-buttons">
+                            <button class="action-btn favorite-btn" onclick="app.removeFavorite('${id}')">
+                                <i class="fa-solid fa-heart-crack"></i> Remover
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            removeFavorite(id) {
+                this.favorites.delete(id);
+                localStorage.setItem('favorites', JSON.stringify([...this.favorites]));
+                this.showNotification('💔 Removido dos favoritos');
+                this.loadFavorites();
+            }
+
+            showLoading(text = 'Carregando...') {
+                const content = document.getElementById('content');
+                content.innerHTML = `
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        <p>${text}</p>
+                    </div>
+                `;
+            }
+
+            showError(text) {
+                const content = document.getElementById('content');
+                content.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <p>${text}</p>
+                        <button class="retry-btn" onclick="app.loadRandomCat()">Tentar novamente</button>
+                    </div>
+                `;
+            }
+
+            showNotification(message, type = 'success') {
+                const notif = document.getElementById('notification');
+                notif.textContent = message;
+                notif.className = `notification ${type === 'error' ? 'error' : ''} show`;
+                setTimeout(() => notif.classList.remove('show'), 2000);
+            }
+        }
+
+        const app = new CatVotingApp();
+    </script>
+</body>
+</html>
