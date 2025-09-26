@@ -572,28 +572,93 @@
 
             async favorite() {
                 if (!this.currentCat) return;
-                
+            
                 try {
-                    const response = await fetch(`${this.BASE_URL}/favourites`, {
-                        method: "POST",
-                        headers: this.headers,
-                        body: JSON.stringify({
-                            image_id: this.currentCat.id
-                        })
-                    });
-                    
-                    if (!response.ok) {
-                        console.warn('Erro ao favoritar, mas continuando...');
+                    // Obter favoritos atuais do localStorage
+                    let favs = JSON.parse(localStorage.getItem("favorites")) || [];
+            
+                    // Evitar duplicados
+                    if (!favs.find(f => f.id === this.currentCat.id)) {
+                        favs.push({ id: this.currentCat.id, url: this.currentCat.url, breed: (this.currentCat.breeds?.[0]?.name || 'Vota no Gator') });
+                        localStorage.setItem("favorites", JSON.stringify(favs));
+                        this.showNotification('❤️ Adicionado aos favoritos!');
+                    } else {
+                        this.showNotification('Já está nos favoritos!', 'error');
                     }
-                    
-                    this.favorites.add(this.currentCat.id);
-                    this.showNotification('❤️ Adicionado aos favoritos!');
-                    
                 } catch (error) {
-                    console.error('Erro ao favoritar:', error);
-                    this.showNotification('❤️ Favoritado localmente!', 'success');
+                    console.error('Erro ao favoritar localmente:', error);
+                    this.showNotification('Erro ao favoritar localmente!', 'error');
                 }
             }
+            
+            async loadFavorites() {
+                this.showLoading('Carregando favoritos...');
+                try {
+                    const favs = JSON.parse(localStorage.getItem("favorites")) || [];
+                    this.displayFavorites(favs);
+                } catch (error) {
+                    console.error('Erro ao carregar favoritos do localStorage:', error);
+                    this.showError('Erro ao carregar favoritos locais.');
+                }
+            }
+            
+            displayFavorites(favorites) {
+                const content = document.getElementById('content');
+            
+                if (favorites.length === 0) {
+                    content.innerHTML = `
+                        <div class="error-state">
+                            <div class="error-icon">💔</div>
+                            <h3>Nenhum favorito ainda</h3>
+                            <p>Volte para a aba de votação e favorite alguns gatinhos!</p>
+                            <button class="retry-btn" onclick="app.switchTab('voting')">
+                                Ir votar em gatinhos
+                            </button>
+                        </div>
+                    `;
+                    return;
+                }
+            
+                const favoritesHTML = favorites.map(fav => `
+                    <div style="background: #f8f9fa; border-radius: 12px; overflow: hidden; margin-bottom: 20px;">
+                        <img src="${fav.url}" alt="${fav.breed}" 
+                             style="width: 100%; height: 200px; object-fit: cover;">
+                        <div style="padding: 15px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="color: #6c757d; font-size: 14px;">
+                                    ${fav.breed}
+                                </span>
+                                <button onclick="app.removeFavorite('${fav.id}')" 
+                                        style="background: none; border: none; color: #ff6b6b; cursor: pointer; font-size: 18px;"
+                                        title="Remover dos favoritos">
+                                    🗑️
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            
+                content.innerHTML = `
+                    <div style="width: 100%;">
+                        <h2 style="margin-bottom: 25px; color: #2c3e50; text-align: center;">❤️ Seus Favoritos</h2>
+                        ${favoritesHTML}
+                    </div>
+                `;
+            }
+            
+            removeFavorite(favoriteId) {
+                try {
+                    let favs = JSON.parse(localStorage.getItem("favorites")) || [];
+                    favs = favs.filter(f => f.id !== favoriteId);
+                    localStorage.setItem("favorites", JSON.stringify(favs));
+                    this.showNotification('💔 Removido dos favoritos');
+                    this.loadFavorites();
+                } catch (error) {
+                    console.error('Erro ao remover favorito do localStorage:', error);
+                    this.showNotification('Erro ao remover favorito', 'error');
+                }
+            }
+
 
             async loadBreeds() {
                 try {
